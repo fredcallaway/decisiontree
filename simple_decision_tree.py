@@ -6,17 +6,9 @@ import multiprocessing as mp
 
 
 # Two functions for generating the datasets from a list of variances
-def gen_investment(sigmas):
-    choice_1 = np.zeros(len(sigmas))
-    choice_2 = np.zeros(len(sigmas))
-    
-    ## Change here if you want varying mean payoffs. 
-    # μ = random.normalvariate(5,2)
-    μ = 0
-    for i in range(len(sigmas)):
-        choice_1[i] = random.normalvariate(μ,sigmas[i])
-        choice_2[i] = random.normalvariate(μ,sigmas[i])
-    return (choice_1, choice_2)
+def gen_investment(sigmas, n_item=2):
+    X = np.random.randn(n_item, len(sigmas))
+    return X * sigmas
 
 def gen_investment_list(sigmas, n):
     return [gen_investment(sigmas) for i in range(n)]
