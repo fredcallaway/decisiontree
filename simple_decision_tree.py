@@ -87,21 +87,19 @@ class Node:
             else:
                 return self.right.decide(x, cost + new_cost)
     
+    def iter_nodes(self):
+        yield self
+        if self.type == 'compare':
+            yield from self.left.iter_nodes()
+            yield from self.right.iter_nodes()
+
     # Helper function to get a list of all non-termianl nodes. Used for mutations and crossover
     def node_list(self):
-        if self.type == "end":
-            return np.array([])
-        else:
-            return np.concatenate((np.array([self]), self.left.node_list(), self.right.node_list()))
-
-
+        return [node for node in self.iter_nodes() if node.type != 'end']
     
     # Helper function to get a list of all end-nodes, used for mutation. 
     def end_list(self):
-        if self.type == "end":
-            return np.array([self])
-        else:
-            return np.concatenate((self.left.end_list(), self.right.end_list()))
+        return [node for node in self.iter_nodes() if node.type == 'end']
 
 
 # Generates a tree of max-depth max_t, where the probability of extending a 
