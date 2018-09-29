@@ -42,9 +42,11 @@ class Node:
             self.α = rand_α()
             self.left = None
             self.right = None
+            self.cost = (self.ω != 0).sum()
         elif node_type == "end":
             self.type = node_type
             self.decision = rand_decision()  
+            self.cost = 0
         self.depth_cost = 1
     
     def add_left_compare(self):
@@ -80,11 +82,10 @@ class Node:
         if self.type == "end":
             return (self.decision, cost)
         else:
-            new_cost = sum(self.ω != 0) + self.depth_cost
+            new_cost = self.cost + self.depth_cost
             if  np.dot(self.ω, x) < self.α:
                 return self.left.decide(x, cost + new_cost)
             else:
-                new_cost = sum(self.ω != 0) + self.depth_cost
                 return self.right.decide(x, cost + new_cost)
     
     # Helper function to get a list of all non-termianl nodes. Used for mutations and crossover
@@ -118,7 +119,7 @@ def init_tree(max_t, p_extend, ω_len=10):
 
 # The fitness calculation
 def fitness_single(tree, x, c=1):
-    x_list = np.append(x[0], x[1])
+    x_list = x.flat
     choice, cost = tree.decide(x_list)
     payoff = x[choice].sum()
     cost = cost*c
@@ -247,12 +248,11 @@ cores = mp.cpu_count() # If cores is 1, no parallelization is performed
 n_per_core = int((pop_size -elit)/cores)
 n_extra = pop_size - n_per_core*cores - elit
 
-
 # In[ ]:
 
 
 
-def evolve():
+def evolve(periods=50, verbose=False):
     pop = [init_tree(max_t, p_extend, ω_len=2*len(sigmas)) for i in range(pop_size)]
     for i in range(periods):
         # Generate a new set of investment problems, to avoid overfitting
@@ -282,9 +282,9 @@ def evolve():
             weights = weights/weights.sum()
         else:
             weights = np.array([])
-        
-        print("---- Best individual in iteration: " + str(i) + "-----")
-        print("Perf: " + str(perf[0]["fit"]) + "\n" + str(perf[0]["tree"]))
+        if verbose:
+            print("---- Best individual in iteration: " + str(i) + "-----")
+            print("Perf: " + str(perf[0]["fit"]) + "\n" + str(perf[0]["tree"]))
         
         # Save the five best trees
         new_pop = [x["tree"] for x in perf[:elit]]
