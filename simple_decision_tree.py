@@ -16,16 +16,15 @@ def gen_investment_list(sigmas, n):
 
 # The decision trees are built recursively from the node objects. The nodes
 # are either of comparision or end types. The end nodes simply have the
-# decision related to it. The comparison nodes have a weight ω, a
-# threshold α, and points to two child nodes, left and right. If ω\*x < α
-# the left child node is selected, otherwise the right child node.
-
+# decision related to it. The comparison nodes have feature weights anda
+# threshold and point to two child nodes, left and right. If weights\*x <
+# threshold the left child node is selected, otherwise the right child node.
 
 # Functions to sample the parameters of the decision nodes. Used for both generation and mutation of DTs
-def rand_ω():
+def rand_weights():
     return np.random.randint(-1, high=2)
 
-def rand_α():
+def rand_threshold():
     return np.random.rand()*2 -1
     # return 0
 
@@ -34,15 +33,15 @@ def rand_decision():
 
 # Nodes that are used for recursive construction of the DTs. Can be of either compare or end type. 
 class Node:
-    def __init__(self, node_type="compare", ω_len=0):
+    def __init__(self, node_type="compare", weights_len=0):
         if node_type == "compare":
-            self.ω_len = ω_len
+            self.weights_len = weights_len
             self.type = node_type
-            self.ω = np.array([rand_ω() for i in range(ω_len)])
-            self.α = rand_α()
+            self.weights = np.array([rand_weights() for i in range(weights_len)])
+            self.threshold = rand_threshold()
             self.left = None
             self.right = None
-            self.cost = (self.ω != 0).sum()
+            self.cost = (self.weights != 0).sum()
         elif node_type == "end":
             self.type = node_type
             self.decision = rand_decision()  
@@ -50,10 +49,10 @@ class Node:
         self.depth_cost = 1
     
     def add_left_compare(self):
-        self.left = Node(ω_len=self.ω_len)
+        self.left = Node(weights_len=self.weights_len)
     
     def add_right_compare(self):
-        self.right = Node(ω_len=self.ω_len)
+        self.right = Node(weights_len=self.weights_len)
     
     def add_left_end(self):
         self.left = Node(node_type="end")
@@ -65,7 +64,9 @@ class Node:
     def _str(self, tabs=""):
         if self.type == "compare":
             tabs = tabs + "\t"
-            return str(self.ω) + "|" + str(round(self.α,2)) + "\n" + tabs + "left:" + self.left._str(tabs) + "\n" + tabs + "right:" + self.right._str(tabs)
+            return (str(self.weights) + "|" + str(round(self.threshold,2)) + "\n" + tabs + 
+                    "left:" + self.left._str(tabs) + "\n" + tabs +
+                    "right:" + self.right._str(tabs))
         elif self.type=="end": 
             return str(self.decision)
         else:
@@ -83,7 +84,7 @@ class Node:
             return (self.decision, cost)
         else:
             new_cost = self.cost + self.depth_cost
-            if  np.dot(self.ω, x) < self.α:
+            if  np.dot(self.weights, x) < self.threshold:
                 return self.left.decide(x, cost + new_cost)
             else:
                 return self.right.decide(x, cost + new_cost)
@@ -105,14 +106,14 @@ class Node:
 
 # Generates a tree of max-depth max_t, where the probability of extending a 
 # node in each direction is given by p_extend
-def init_tree(max_t, p_extend, ω_len=10):
-    root = Node(ω_len=ω_len)
+def init_tree(max_t, p_extend, weights_len=10):
+    root = Node(weights_len=weights_len)
     if (max_t > 1) and (np.random.rand() < p_extend):
-        root.left = init_tree(max_t - 1, p_extend, ω_len=ω_len)
+        root.left = init_tree(max_t - 1, p_extend, weights_len=weights_len)
     else:
         root.add_left_end()
     if (max_t > 1) and (np.random.rand() < p_extend):
-        root.right = init_tree(max_t - 1, p_extend, ω_len=ω_len)
+        root.right = init_tree(max_t - 1, p_extend, weights_len=weights_len)
     else:
         root.add_right_end()
     return root
@@ -132,7 +133,8 @@ def fitness(tree, x_vec, c=1):
     return fitness
 
 
-# Crossover, with probability p one node including subtree, is replace in tree1 from tree2. Tree1 is then the child.
+# Crossover, with probability p one node including subtree, is replace in
+# tree1 from tree2. Tree1 is then the child.
 def cross_over(tree1, tree2, p):
     if  np.random.random() < p:
         new_tree = tree1.copy()
@@ -147,13 +149,13 @@ def cross_over(tree1, tree2, p):
         return tree1.copy()
 
 # Mutates the params at the nodes
-def param_mutate(tree, p_ω, p_α, p_end):
+def param_mutate(tree, p_weights, p_threshold, p_end):
     for node in tree.node_list():
-        for i in range(len(node.ω)):
-            if np.random.rand() < p_ω:
-                node.ω[i] = rand_ω()
-        if np.random.rand() < p_α:
-            node.α = rand_α()
+        for i in range(len(node.weights)):
+            if np.random.rand() < p_weights:
+                node.weights[i] = rand_weights()
+        if np.random.rand() < p_threshold:
+            node.threshold = rand_threshold()
     
     for end in tree.end_list():
         if np.random.rand() < p_end:
@@ -192,7 +194,7 @@ def gen_child(selection_mechanism, perf, weights):
     new_tree = cross_over(tree1, tree2, p_crossover)
 
     if np.random.rand() < param_mut_p:
-        param_mutate(new_tree, p_ω, p_α, p_end)
+        param_mutate(new_tree, p_weights, p_threshold, p_end)
     if np.random.rand() < subtree_mut_p:
         subtree_mutate(new_tree, max_t=2, p_extend=p_extend)
     
@@ -217,8 +219,8 @@ def gen_perf(pop, x_vec, c):
 
 
 param_mut_p = 1.    # Probability of mutation for children
-p_ω = 0.6           # Probability of each element of weight vector to be mutated, conditional on mutation
-p_α = 0.6           # Probability of threshold to be mutated, conditional on mutation 
+p_weights = 0.6           # Probability of each element of weight vector to be mutated, conditional on mutation
+p_threshold = 0.6           # Probability of threshold to be mutated, conditional on mutation 
 p_end = 0.2         # Probability of the decision at end-nodes to be mutated, conditional on mutation
 subtree_mut_p = 0.0 # Probability of subtree-mutation
 p_crossover = 0.    # Probability of cross-over
@@ -231,7 +233,7 @@ max_t = 2           # Max-depth of trees
 p_extend = 0.3      # Probability of extending along each node when generating
 periods = 50        # Number of periods the evolutionary algorithm runs
 
-# params = {"param_mut_p":param_mut_p, "p_ω":p_ω, "p_α":p_α, "p_end":p_end}
+# params = {"param_mut_p":param_mut_p, "p_weights":p_weights, "p_threshold":p_threshold, "p_end":p_end}
 
 
 selection_mechanism = "rank" # The used selection rule, one of  "rank" | "tournament" | "roulette" 
@@ -253,7 +255,7 @@ n_extra = pop_size - n_per_core*cores - elit
 
 
 def evolve(periods=50, verbose=False):
-    pop = [init_tree(max_t, p_extend, ω_len=2*len(sigmas)) for i in range(pop_size)]
+    pop = [init_tree(max_t, p_extend, weights_len=2*len(sigmas)) for i in range(pop_size)]
     for i in range(periods):
         # Generate a new set of investment problems, to avoid overfitting
         x_vec = gen_investment_list(sigmas, inves_len)
@@ -291,7 +293,8 @@ def evolve(periods=50, verbose=False):
         
         if cores > 1:
             pool = mp.Pool(processes=cores)
-            res_mp = [pool.apply_async(gen_n_children, args=(n_per_core, selection_mechanism, perf, weights)) for x in range(cores)]
+            res_mp = [pool.apply_async(gen_n_children, args=(n_per_core, selection_mechanism, perf, weights)) 
+                      for x in range(cores)]
             for p in res_mp:
                 new_pop.extend(p.get())
             pool.close()
