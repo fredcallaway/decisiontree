@@ -41,15 +41,11 @@ class Node:
             self.threshold = rand_threshold()
             self.left = None
             self.right = None
-            self.cost = (self.weights != 0).sum()
         elif node_type == "end":
             self.type = node_type
             self.decision = rand_decision()  
-            self.cost = 0
         self.depth_cost = 1
 
-    
-    
     def add_left_compare(self):
         self.left = Node(weights_len=self.weights_len)
     
@@ -85,7 +81,7 @@ class Node:
         if self.type == "end":
             return (self.decision, cost)
         else:
-            new_cost = self.cost + self.depth_cost
+            new_cost = (self.weights != 0).sum() + self.depth_cost
             if  np.dot(self.weights, x) < self.threshold:
                 return self.left.decide(x, cost + new_cost)
             else:
