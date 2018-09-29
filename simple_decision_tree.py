@@ -47,6 +47,8 @@ class Node:
             self.decision = rand_decision()  
             self.cost = 0
         self.depth_cost = 1
+
+    
     
     def add_left_compare(self):
         self.left = Node(weights_len=self.weights_len)
@@ -95,6 +97,8 @@ class Node:
             return np.array([])
         else:
             return np.concatenate((np.array([self]), self.left.node_list(), self.right.node_list()))
+
+
     
     # Helper function to get a list of all end-nodes, used for mutation. 
     def end_list(self):
@@ -120,17 +124,13 @@ def init_tree(max_t, p_extend, weights_len=10):
 
 # The fitness calculation
 def fitness_single(tree, x, c=1):
-    x_list = x.flat
-    choice, cost = tree.decide(x_list)
+    choice, cost = tree.decide(x.flat)
     payoff = x[choice].sum()
     cost = cost*c
     return payoff - cost
 
 def fitness(tree, x_vec, c=1):
-    fitness = 0
-    for x in x_vec:
-        fitness = fitness + fitness_single(tree, x, c)
-    return fitness
+    return sum(fitness_single(tree, x, c) for x in x_vec)
 
 
 # Crossover, with probability p one node including subtree, is replace in
@@ -149,7 +149,7 @@ def cross_over(tree1, tree2, p):
         return tree1.copy()
 
 # Mutates the params at the nodes
-def param_mutate(tree, p_weights, p_threshold, p_end):
+def param_mutate(tree, p_threshold, p_end):
     for node in tree.node_list():
         for i in range(len(node.weights)):
             if np.random.rand() < p_weights:
@@ -194,7 +194,7 @@ def gen_child(selection_mechanism, perf, weights):
     new_tree = cross_over(tree1, tree2, p_crossover)
 
     if np.random.rand() < param_mut_p:
-        param_mutate(new_tree, p_weights, p_threshold, p_end)
+        param_mutate(new_tree, p_threshold, p_end)
     if np.random.rand() < subtree_mut_p:
         subtree_mutate(new_tree, max_t=2, p_extend=p_extend)
     
@@ -306,4 +306,4 @@ def evolve(periods=50, verbose=False):
         pop = new_pop
 
 if __name__ == '__main__':
-    evolve()
+    evolve(verbose=True)
