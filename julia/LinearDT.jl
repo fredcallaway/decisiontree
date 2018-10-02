@@ -220,22 +220,19 @@ end
 "Makes a local optimazation for all decision nodes"
 function opt_decisions(tree::Node, x_vec::Vector{Investment})
     for node in gen_node_list(tree)
-        if isa(node.left, Int64)
-            fit = fitness(tree, x_vec)
-            node.left = node.left == 1 ? 2 : 1
-            if fitness(tree, x_vec) <= fit
-                node.left = node.left == 1 ? 2 : 1
-            end
-        end
-        if isa(node.right, Int64)
-            fit = fitness(tree, x_vec)
-            node.right = node.right == 1 ? 2 : 1
-            if fitness(tree, x_vec) <= fit
-                node.right = node.right == 1 ? 2 : 1
+        for branch in (:left, :right)
+            child = getfield(node, branch)
+            if isa(child, Int64)
+                fit = fitness(tree, x_vec)
+                setfield!(node, branch, child == 1 ? 2 : 1)
+                if fitness(tree, x_vec) <= fit
+                    setfield!(node, branch, child)
+                end
             end
         end
     end
 end
+
 
 "Makes a local optimazation for all params, w and threshold, for a node"
 function opt_node_params(tree::Node, node::Node, x_vec::Vector{Investment})
