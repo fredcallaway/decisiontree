@@ -221,12 +221,13 @@ end
 function opt_decisions(tree::Node, x_vec::Vector{Investment})
     for node in gen_node_list(tree)
         for branch in (:left, :right)
-            child = getfield(node, branch)
-            if isa(child, Int64)
-                fit = fitness(tree, x_vec)
-                setfield!(node, branch, child == 1 ? 2 : 1)
-                if fitness(tree, x_vec) <= fit
-                    setfield!(node, branch, child)
+            @eval begin
+                if isa(node.$branch, Int64)
+                    fit = fitness(tree, x_vec)
+                    node.$branch = child == 1 ? 2 : 1
+                    if fitness(tree, x_vec) <= fit
+                        node.$branch = child == 1 ? 2 : 1
+                    end
                 end
             end
         end
