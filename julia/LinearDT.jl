@@ -25,20 +25,22 @@ const p_reduce = 0.5
 const p_trim = 0.5
 const tourn_size = 3
 
+Investment = Tuple{Vector{Float64}, Vector{Float64}}
+
 "Generates a single pair of possible investments"
-function gen_investment(sigmas::Vector{Float64})::Tuple{Vector{Float64}, Vector{Float64}}
+function gen_investment(sigmas::Vector{Float64})::Investment
     choice_1 = [randn()*sigma for sigma in sigmas]
     choice_2 = [randn()*sigma for sigma in sigmas]
     return (choice_1, choice_2)
 end
 
 "Generates a list of n choices to make"
-function gen_investment_list(sigmas::Vector{Float64}, n::Int64)::Vector{Tuple{Vector{Float64}, Vector{Float64}}}
+function gen_investment_list(sigmas::Vector{Float64}, n::Int64)::Vector{Investment}
     [gen_investment(sigmas) for i in 1:n]
 end
 
 "Generates a vector of the features of the two choices"
-function gen_features(x::Tuple{Vector{Float64}, Vector{Float64}})::Vector{Float64}
+function gen_features(x::Investment)::Vector{Float64}
     vcat(x[1], x[2])
 end
 
@@ -150,7 +152,7 @@ function random_subtree(max_t::Int64, p_extend::Float64, sigmas::Vector{Float64}
 end
 
 "Calcualte fitness for a tree from a single decision"
-function fitness_single(tree::Node, x::Tuple{Vector{Float64}, Vector{Float64}})::Float64
+function fitness_single(tree::Node, x::Investment)::Float64
     features = gen_features(x)
     choice, cost_vec, n_decisions = dt_decide(tree, features)
     # if x[1][4] > 0
@@ -165,7 +167,7 @@ function fitness_single(tree::Node, x::Tuple{Vector{Float64}, Vector{Float64}}):
 end
 
 "Calculates the fitness over a vector of decsions for a tree"
-function fitness(tree::Node, x_vec::Vector{Tuple{Vector{Float64}, Vector{Float64}}})::Float64
+function fitness(tree::Node, x_vec::Vector{Investment})::Float64
     fitness = sum(fitness_single(tree,x) for x in x_vec)
 end
 
@@ -216,7 +218,7 @@ function mutate_subtree(tree::Node, max_t::Int64=2, p_extend::Float64=0.5)
 end
 
 "Makes a local optimazation for all decision nodes"
-function opt_decisions(tree::Node, x_vec::Vector{Tuple{Vector{Float64}, Vector{Float64}}})
+function opt_decisions(tree::Node, x_vec::Vector{Investment})
     for node in gen_node_list(tree)
         if isa(node.left, Int64)
             fit = fitness(tree, x_vec)
@@ -236,7 +238,7 @@ function opt_decisions(tree::Node, x_vec::Vector{Tuple{Vector{Float64}, Vector{F
 end
 
 "Makes a local optimazation for all params, w and threshold, for a node"
-function opt_node_params(tree::Node, node::Node, x_vec::Vector{Tuple{Vector{Float64}, Vector{Float64}}})
+function opt_node_params(tree::Node, node::Node, x_vec::Vector{Investment})
     best_fitness = fitness(tree, x_vec)
     for i in 1:node.w_len
         best_val = node.w[i]
@@ -266,14 +268,14 @@ function opt_node_params(tree::Node, node::Node, x_vec::Vector{Tuple{Vector{Floa
 end
 
 "Iterates over all decision nodes in a tree and makes a local optimazation of parameters"
-function opt_tree_params(tree::Node, x_vec::Vector{Tuple{Vector{Float64}, Vector{Float64}}})
+function opt_tree_params(tree::Node, x_vec::Vector{Investment})
     for node in gen_node_list(tree)
         opt_node_params(tree, node, x_vec)
     end
 end
 
 "Iteratively replaces the nodes with a decision if that improves the fitness"
-function reduce_tree(tree::Node, x_vec::Vector{Tuple{Vector{Float64}, Vector{Float64}}})
+function reduce_tree(tree::Node, x_vec::Vector{Investment})
     for node in gen_node_list(tree)
         if isa(node.left, Node)
             best_node = node.left
@@ -332,7 +334,7 @@ function trim_tree(tree::Node)
 end
 #
 "Generates a named tuple with tree at fitness for all trees in population"
-function gen_perf(pop::Vector{Node}, x_vec::Vector{Tuple{Vector{Float64}, Vector{Float64}}})::Vector{NamedTuple{(:tree, :fit),Tuple{Node, Float64}}}
+function gen_perf(pop::Vector{Node}, x_vec::Vector{Investment})::Vector{NamedTuple{(:tree, :fit),Tuple{Node, Float64}}}
     [(tree=tree, fit=fitness(tree,x_vec)) for tree in pop]
 end
 
@@ -358,7 +360,7 @@ function weighted_selection(perf::Array{NamedTuple{(:tree, :fit),Tuple{Node,Floa
 end
 
 "Selects two parents, creates a child with crossower, mutates, optimizes and trims"
-function gen_child(selection_mechanism::String, perf::Array{NamedTuple{(:tree, :fit),Tuple{Node,Float64}},1}, x_vec::Vector{Tuple{Vector{Float64}, Vector{Float64}}}, weights::Vector{Float64})::Node
+function gen_child(selection_mechanism::String, perf::Array{NamedTuple{(:tree, :fit),Tuple{Node,Float64}},1}, x_vec::Vector{Investment}, weights::Vector{Float64})::Node
     if selection_mechanism == "tournament"
         tree1, tree2 = tournament_selection(perf)
     else
@@ -390,7 +392,7 @@ function gen_child(selection_mechanism::String, perf::Array{NamedTuple{(:tree, :
 end
 
 "Iteratively generates children unitl n are generated. Not currently in use with par"
-function gen_n_children(n::Int64, selection_mechanism::String, perf::Array{NamedTuple{(:tree, :fit),Tuple{Node,Float64}},1}, x_vec::Vector{Tuple{Vector{Float64}, Vector{Float64}}}, weights::Vector{Float64})::Vector{Node}
+function gen_n_children(n::Int64, selection_mechanism::String, perf::Array{NamedTuple{(:tree, :fit),Tuple{Node,Float64}},1}, x_vec::Vector{Investment}, weights::Vector{Float64})::Vector{Node}
     children = [gen_child(selection_mechanism, perf, x_vec, weights) for i in 1:n]
     return children
 end
