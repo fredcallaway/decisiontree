@@ -1,6 +1,6 @@
 module LinearDT
 
-export fitness, gen_n_children, gen_child, Node, init_tree, gen_perf, gen_investment_list, gen_investment
+export fitness, gen_n_children, gen_child, Node, init_tree, gen_perf, gen_investment_list, gen_investment, actual_best_decision, dt_decide, decision_payoff, gen_features
 
 using StatsBase: sample, Weights
 
@@ -23,7 +23,7 @@ const p_opt_tree = 0.5
 const p_reduce = 0.5
 const p_trim = 0.5
 const tourn_size = 3
-const n_items = 5
+const n_items = 2
 
 Investment = Vector{Vector{Float64}}
 
@@ -150,17 +150,31 @@ function random_subtree(max_t::Int64, p_extend::Float64, sigmas::Vector{Float64}
     return root
 end
 
+"Actual decision payoff, without regard to cognitive cost or trees"
+function decision_payoff(x::Investment, choice::Int64)::Float64
+    sum(x[choice])
+end
+
+"Actual best decision of problem, used for comparisons with tree decisions"
+function actual_best_decision(x::Investment)::Tuple{Int64, Float64}
+    best_payoff = decision_payoff(x, 1)
+    best_choice = 1
+    for i in 2:n_items
+        payoff = decision_payoff(x, i)
+        if payoff > best_payoff
+            best_payoff = payoff
+            best_choice = i
+        end
+    end
+    return (best_choice, best_payoff)
+end
+
+
 "Calcualte fitness for a tree from a single decision"
 function fitness_single(tree::Node, x::Investment)::Float64
     features = gen_features(x)
     choice, cost_vec, n_decisions = dt_decide(tree, features)
-    # if x[1][4] > 0
-    #     payoff = sum(x[choice])
-    # else
-    #     payoff = -sum(x[choice])
-    # end
-    payoff = sum(x[choice])
-
+    payoff = decision_payoff(x,choice)
     cost = sum(cost_vec)*feature_cost + n_decisions*decision_cost
     return payoff - cost
 end

@@ -18,8 +18,8 @@ addprocs(Sys.CPU_THREADS)
     p_extend = 0.7
     n_elit = 3
     periods = 10
-    n_problems = 1000
-    sigmas = [1., 1., 1., 1.]
+    n_problems = 10000
+    sigmas = [1., 0.5, 0.2, 0.1]
     selection_mechanism = "tournament"
     pop_fun = x -> init_tree(max_t, p_extend, sigmas)
 end
@@ -83,8 +83,27 @@ end
 
 
 @everywhere pop = $pop
-@time perf = pmap(single_perf, pop; batch_size=1)
-# sort!(perf, rev=true, by = x -> x.fit)
+@time perf = pmap(single_perf, pop)
+sort!(perf, rev=true, by = x -> x.fit)
+best_tree = perf[1].tree
+
+
+# %%
+
+
+get_decision_payoff_tuple = x -> begin
+    decision = dt_decide(best_tree, gen_features(x))[1]
+    (decision, decision_payoff(x, decision))
+end
+tree_decisions = [get_decision_payoff_tuple(x) for x in x_vec]
+opt_decisions = [actual_best_decision(x) for x in x_vec]
+
+#%%
+println(string("Avg payoff from tree decisions:", mean([x[2] for x in tree_decisions])))
+println(string("Avg payoff from tree decisions:", mean([x[2] for x in opt_decisions])))
+println(string("Share same decision:", sum([x[1] for x in opt_decisions] .== [x[1] for x in tree_decisions])/length(tree_decisions)))
+
+
 
 ### Old non-parallised code
 # pop_size = 200
