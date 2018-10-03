@@ -225,16 +225,16 @@ function opt_decisions(tree::Node, x_vec::Vector{Investment})
                 best_child = child
                 best_fitness = fitness(tree, x_vec)
                 test_vals = collect(1:n_items)
-                filter!(x -> x != best_val, test_vals)
+                filter!(x -> x != best_child, test_vals)
                 for val in test_vals
                     setfield!(node, branch, val)
                     fit = fitness(tree, x_vec)
-                    if fit > best_fit
+                    if fit > best_fitness
                         best_fitness = fit
                         best_child = val
                     end
                 end
-                setfield!(node, branch, best_val)
+                setfield!(node, branch, best_child)
             end
         end
     end
@@ -281,31 +281,21 @@ end
 "Iteratively replaces the nodes with a decision if that improves the fitness"
 function reduce_tree(tree::Node, x_vec::Vector{Investment})
     for node in gen_node_list(tree)
-        if isa(node.left, Node)
-            best_node = node.left
-            best_fitness = fitness(tree, x_vec)
-            for decision in 1:n_items
-                node.left = decision
-                fit = fitness(tree, x_vec)
-                if fit >= best_fitness
-                    best_fitness = fit
-                    best_node = decision
+        for branch in (:left, :right)
+            child = getfield(node, branch)
+            if isa(child, Node)
+                best_node = child
+                best_fitness = fitness(tree, x_vec)
+                for decision in 1:n_items
+                    setfield!(node, branch, decision)
+                    fit = fitness(tree, x_vec)
+                    if fit >= best_fitness
+                        best_fitness = fit
+                        best_node = decision
+                    end
                 end
+                setfield!(node, branch, best_node)
             end
-            node.left = best_node
-        end
-        if isa(node.right, Node)
-            best_node = node.right
-            best_fitness = fitness(tree, x_vec)
-            for decision in [1,2]
-                node.right = decision
-                fit = fitness(tree, x_vec)
-                if fit >= best_fitness
-                    best_fitness = fit
-                    best_node = decision
-                end
-            end
-            node.right = best_node
         end
     end
 end
