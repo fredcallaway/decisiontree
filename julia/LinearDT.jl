@@ -1,8 +1,7 @@
 module LinearDT
 
-export fitness, gen_n_children, gen_child, Node, init_tree, gen_perf, gen_investment_list, gen_investment
+export fitness, gen_n_children, gen_child, Node, init_tree, gen_perf, gen_investment_list, gen_investment, actual_best_decision, dt_decide, decision_payoff, gen_features
 
-using BenchmarkTools
 using StatsBase: sample, Weights
 
 # I was to lazy to pass all these parameters arond all the time.
@@ -24,14 +23,14 @@ const p_opt_tree = 0.5
 const p_reduce = 0.5
 const p_trim = 0.5
 const tourn_size = 3
+const n_items = 2
 
-Investment = Tuple{Vector{Float64}, Vector{Float64}}
+Investment = Vector{Vector{Float64}}
 
-"Generates a single pair of possible investments"
+"Generates a single investment problem"
 function gen_investment(sigmas::Vector{Float64})::Investment
-    choice_1 = [randn()*sigma for sigma in sigmas]
-    choice_2 = [randn()*sigma for sigma in sigmas]
-    return (choice_1, choice_2)
+    x = [randn(length(sigmas)).*sigmas for i in 1:n_items]
+    return x
 end
 
 "Generates a list of n choices to make"
@@ -41,7 +40,7 @@ end
 
 "Generates a vector of the features of the two choices"
 function gen_features(x::Investment)::Vector{Float64}
-    vcat(x[1], x[2])
+    vcat(x...)
 end
 
 "Genreates a random weight"
@@ -56,7 +55,7 @@ end
 
 "Generates a random decsion ∈ [1,2]"
 function rand_d()::Int64
-    rand([1,2])
+    rand(1:n_items)
 end
 
 "The custom type for the node object"
@@ -68,7 +67,7 @@ mutable struct Node
     left::Union{Int64,Node}
     right::Union{Int64,Node}
     function Node(sigmas::Vector{Float64})
-        w_len = length(sigmas)*2
+        w_len = length(sigmas)*n_items
         w = [rand_w() for i in 1:w_len]
         threshold = rand_threshold()
         left = rand_d()
@@ -151,17 +150,31 @@ function random_subtree(max_t::Int64, p_extend::Float64, sigmas::Vector{Float64}
     return root
 end
 
+"Actual decision payoff, without regard to cognitive cost or trees"
+function decision_payoff(x::Investment, choice::Int64)::Float64
+    sum(x[choice])
+end
+
+"Actual best decision of problem, used for comparisons with tree decisions"
+function actual_best_decision(x::Investment)::Tuple{Int64, Float64}
+    best_payoff = decision_payoff(x, 1)
+    best_choice = 1
+    for i in 2:n_items
+        payoff = decision_payoff(x, i)
+        if payoff > best_payoff
+            best_payoff = payoff
+            best_choice = i
+        end
+    end
+    return (best_choice, best_payoff)
+end
+
+
 "Calcualte fitness for a tree from a single decision"
 function fitness_single(tree::Node, x::Investment)::Float64
     features = gen_features(x)
     choice, cost_vec, n_decisions = dt_decide(tree, features)
-    # if x[1][4] > 0
-    #     payoff = sum(x[choice])
-    # else
-    #     payoff = -sum(x[choice])
-    # end
-    payoff = sum(x[choice])
-
+    payoff = decision_payoff(x,choice)
     cost = sum(cost_vec)*feature_cost + n_decisions*decision_cost
     return payoff - cost
 end
@@ -221,14 +234,21 @@ end
 function opt_decisions(tree::Node, x_vec::Vector{Investment})
     for node in gen_node_list(tree)
         for branch in (:left, :right)
-            @eval begin
-                if isa(node.$branch, Int64)
+            child = getfield(node, branch)
+            if isa(child, Int64)
+                best_child = child
+                best_fitness = fitness(tree, x_vec)
+                test_vals = collect(1:n_items)
+                filter!(x -> x != best_child, test_vals)
+                for val in test_vals
+                    setfield!(node, branch, val)
                     fit = fitness(tree, x_vec)
-                    node.$branch = child == 1 ? 2 : 1
-                    if fitness(tree, x_vec) <= fit
-                        node.$branch = child == 1 ? 2 : 1
+                    if fit > best_fitness
+                        best_fitness = fit
+                        best_child = val
                     end
                 end
+                setfield!(node, branch, best_child)
             end
         end
     end
@@ -275,31 +295,21 @@ end
 "Iteratively replaces the nodes with a decision if that improves the fitness"
 function reduce_tree(tree::Node, x_vec::Vector{Investment})
     for node in gen_node_list(tree)
-        if isa(node.left, Node)
-            best_node = node.left
-            best_fitness = fitness(tree, x_vec)
-            for decision in [1,2]
-                node.left = decision
-                fit = fitness(tree, x_vec)
-                if fit >= best_fitness
-                    best_fitness = fit
-                    best_node = decision
+        for branch in (:left, :right)
+            child = getfield(node, branch)
+            if isa(child, Node)
+                best_node = child
+                best_fitness = fitness(tree, x_vec)
+                for decision in 1:n_items
+                    setfield!(node, branch, decision)
+                    fit = fitness(tree, x_vec)
+                    if fit >= best_fitness
+                        best_fitness = fit
+                        best_node = decision
+                    end
                 end
+                setfield!(node, branch, best_node)
             end
-            node.left = best_node
-        end
-        if isa(node.right, Node)
-            best_node = node.right
-            best_fitness = fitness(tree, x_vec)
-            for decision in [1,2]
-                node.right = decision
-                fit = fitness(tree, x_vec)
-                if fit >= best_fitness
-                    best_fitness = fit
-                    best_node = decision
-                end
-            end
-            node.right = best_node
         end
     end
 end
