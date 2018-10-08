@@ -70,7 +70,7 @@ function update_cost!(cost_vec::Vector{Int64}, n_decisions::Int64, w::Vector{Int
     for i in 1:length(w)
         if w[i] != 0
             cost_vec[i] = 1
-            n_decisions += 1
+            n_decisions += 1  # FRED: This behavior seems inconsistent with the variable name.
         end
     end
     return n_decisions
@@ -200,6 +200,9 @@ end
 "Replaces a node/leaf with a random subtree"
 function mutate_subtree(tree::Node, params)
     node = rand(gen_node_list(tree))
+    # FRED: this can result in trees that are deeper than max_t
+    # because we don't restrict the max_t for the random subtree
+    # based on its depth in the `tree`. Is this intentional?
     if rand() < 0.5
         node.left = random_subtree(params.max_t - 1, params)
     else
