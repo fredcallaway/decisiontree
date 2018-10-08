@@ -40,18 +40,17 @@ end
 "The custom type for the node object"
 mutable struct Node
     w_len::Int64
-    sigmas::Vector{Float64}
     w::Array{Int64,}
     threshold::Float64
     left::Union{Int64,Node}
     right::Union{Int64,Node}
-    function Node(sigmas::Vector{Float64}, n_items::Int64)
-        w_len = length(sigmas)*n_items
+    function Node(n_attr::Int64, n_items::Int64)
+        w_len = n_attr * n_items
         w = [rand_w() for i in 1:w_len]
         threshold = rand_threshold()
         left = rand_d(n_items)
         right = rand_d(n_items)
-        new(w_len, sigmas, w, threshold, left, right)
+        new(w_len, w, threshold, left, right)
     end
 end
 
@@ -96,13 +95,13 @@ function dt_decide(node::Union{Node,Int64}, features::Vector{Float64}, cost_vec:
 end
 
 "Generates a tree of max length max_t, and exptends in each direction with probability p_extend"
-function init_tree(max_t::Int64, p_extend::Float64, sigmas::Vector{Float64}, params)::Node
-    root = Node(sigmas, params.n_items)
-    if (max_t > 1) && (rand() < p_extend)
-        root.left = init_tree(max_t - 1, p_extend, sigmas, params)
+function init_tree(max_t::Int64, params)::Node
+    root = Node(params.n_attr, params.n_items)
+    if (max_t > 1) && (rand() < params.p_extend)
+        root.left = init_tree(max_t - 1, params)
     end
-    if (max_t > 1) && (rand() < p_extend)
-        root.right = init_tree(max_t - 1, p_extend, sigmas, params)
+    if (max_t > 1) && (rand() < params.p_extend)
+        root.right = init_tree(max_t - 1, params)
     end
     return root
 end
@@ -120,11 +119,11 @@ function gen_node_list(node::Node)::Vector{Node}
 end
 
 "Generates a subtree, that can be just a decision. Used by mutate_subtree"
-function random_subtree(max_t::Int64, p_extend::Float64, sigmas::Vector{Float64}, params)::Union{Node, Int64}
+function random_subtree(max_t::Int64, params)::Union{Node, Int64}
     if rand() < 1/max_t
         root = rand_d(params.n_items)
     else
-        root = init_tree(max_t, p_extend, sigmas, params)
+        root = init_tree(max_t, params)
     end
     return root
 end
@@ -209,9 +208,9 @@ end
 function mutate_subtree(tree::Node, params)
     node = rand(gen_node_list(tree))
     if rand() < 0.5
-        node.left = random_subtree(params.max_t - 1, params.p_extend, node.sigmas, params)
+        node.left = random_subtree(params.max_t - 1, params)
     else
-        node.right = random_subtree(params.max_t - 1, params.p_extend, node.sigmas, params)
+        node.right = random_subtree(params.max_t - 1, params)
     end
 end
 

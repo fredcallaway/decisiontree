@@ -23,12 +23,11 @@ addprocs(Sys.CPU_THREADS)
     n_problems = 10000
     sigmas = [1., 0.7, 0.5, 0.2]
     selection_mechanism = "tournament"
-    params = (pop_size=200, n_items=3, max_t=5, p_extend=0.7, sigmas=sigmas, selection_mechanism=selection_mechanism, feature_cost=0.05, decision_cost=0.01, p_crossover=0.3, p_mutate_params=0.7, p_mutate_w=0.5, p_mutate_threshold=0.5, p_mutate_end=0.3, p_mutate_subtree=0.3, p_opt_decisions=0.5, p_opt_tree=0.5, p_reduce=0.5, p_trim=0.5, tourn_size=3)
-    pop_fun = x -> init_tree(max_t, p_extend, sigmas)
+    params = (pop_size=200, n_items=3, n_attr=length(sigmas), max_t=5, p_extend=0.7, sigmas=sigmas, selection_mechanism=selection_mechanism, feature_cost=0.05, decision_cost=0.01, p_crossover=0.3, p_mutate_params=0.7, p_mutate_w=0.5, p_mutate_threshold=0.5, p_mutate_end=0.3, p_mutate_subtree=0.3, p_opt_decisions=0.5, p_opt_tree=0.5, p_reduce=0.5, p_trim=0.5, tourn_size=3)
 end
 
 # The globals are needed to work from terminal, bugish behavior
-global pop = [init_tree(max_t, p_extend, sigmas, params) for i in 1:pop_size]
+global pop = [init_tree(max_t, params) for i in 1:pop_size]
 global prev_best = pop[1]
 
 
