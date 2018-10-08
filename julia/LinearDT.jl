@@ -39,7 +39,6 @@ end
 
 "The custom type for the node object"
 mutable struct Node
-    w_len::Int64
     w::Array{Int64,}
     threshold::Float64
     left::Union{Int64,Node}
@@ -50,7 +49,7 @@ mutable struct Node
         threshold = rand_threshold()
         left = rand_d(n_items)
         right = rand_d(n_items)
-        new(w_len, w, threshold, left, right)
+        new(w, threshold, left, right)
     end
 end
 
@@ -186,7 +185,7 @@ end
 "Mutates the params of a tree"
 function mutate_params(tree::Node, params)
     for node in gen_node_list(tree)
-        for i in 1:node.w_len
+        for i in 1:length(node.w)
             if rand() < params.p_mutate_w
                 node.w[i] = rand_w()
             end
