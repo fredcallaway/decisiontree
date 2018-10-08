@@ -16,10 +16,8 @@ addprocs(Sys.CPU_THREADS)
 # All theses values have to be shared among the workers
 @everywhere begin
     pop_size = 200
-    max_t = 5
-    p_extend = 0.7
     n_elit = 3
-    periods = 20
+    periods = 10
     n_problems = 10000
     sigmas = [1., 0.7, 0.5, 0.2]
     selection_mechanism = "tournament"
@@ -27,7 +25,7 @@ addprocs(Sys.CPU_THREADS)
 end
 
 # The globals are needed to work from terminal, bugish behavior
-global pop = [init_tree(max_t, params) for i in 1:pop_size]
+global pop = [init_tree(params.max_t, params) for i in 1:pop_size]
 global prev_best = pop[1]
 
 
@@ -80,7 +78,7 @@ n_problems = 100000
 x_vec = gen_investment_list(n_problems, sigmas, params)
 @everywhere begin
     x_vec = $x_vec
-    pop_fun = x -> init_tree(max_t, p_extend, sigmas)
+    pop_fun = x -> init_tree(params.max_t, params)
     single_perf = tree -> (tree=tree, fit=fitness(tree, x_vec, params.feature_cost, params.decision_cost))
 end
 

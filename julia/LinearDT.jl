@@ -87,6 +87,24 @@ function dt_decide(node::Union{Node,Int64}, features::Vector{Float64})
     (node, cost_vec, n_decisions)
 end
 
+"Returns true|false wheter or not a given tree passes a node for a set of features when making decision"
+function x_pass_node(tree::Union{Node,Int64}, node::Node, features::Vector{Float64})::Bool
+    if tree == node
+        return true
+    elseif tree isa Int64
+        return false
+    else
+        next_node = sum(tree.w.*features) < tree.threshold ? tree.left : tree.right
+        return x_pass_node(next_node, node, features)
+    end
+end
+
+"Returns a list of all decisions where a given node is actually relevant for decision"
+function relevant_xs(tree::Node, node::Node, x_vec::Vector{Investment})::Vector{Investment}
+    relevant_xs = filter(x -> x_pass_node(tree, node, vcat(x...)), x_vec)
+    return relevant_xs
+end
+
 "Generates a tree of max length max_t, and exptends in each direction with probability p_extend"
 function init_tree(max_t::Int64, params)::Node
     root = Node(params.n_attr, params.n_items)
@@ -213,22 +231,25 @@ end
 "Makes a local optimazation for all decision nodes"
 function opt_decisions(tree::Node, x_vec::Vector{Investment}, params)
     for node in gen_node_list(tree)
-        for branch in (:left, :right)
-            child = getfield(node, branch)
-            if isa(child, Int64)
-                best_child = child
-                best_fitness = fitness(tree, x_vec, params.feature_cost, params.decision_cost)
-                test_vals = collect(1:params.n_items)
-                filter!(x -> x != best_child, test_vals)
-                for val in test_vals
-                    setfield!(node, branch, val)
-                    fit = fitness(tree, x_vec, params.feature_cost, params.decision_cost)
-                    if fit > best_fitness
-                        best_fitness = fit
-                        best_child = val
+        relevant_x_vec = relevant_xs(tree, node, x_vec)
+        if length(relevant_x_vec) > 0
+            for branch in (:left, :right)
+                child = getfield(node, branch)
+                if isa(child, Int64)
+                    best_child = child
+                    best_fitness = fitness(tree, relevant_x_vec, params.feature_cost, params.decision_cost)
+                    test_vals = collect(1:params.n_items)
+                    filter!(x -> x != best_child, test_vals)
+                    for val in test_vals
+                        setfield!(node, branch, val)
+                        fit = fitness(tree, relevant_x_vec, params.feature_cost, params.decision_cost)
+                        if fit > best_fitness
+                            best_fitness = fit
+                            best_child = val
+                        end
                     end
+                    setfield!(node, branch, best_child)
                 end
-                setfield!(node, branch, best_child)
             end
         end
     end
@@ -237,32 +258,35 @@ end
 
 "Makes a local optimazation for all params, w and threshold, for a node"
 function opt_node_params(tree::Node, node::Node, x_vec::Vector{Investment}, params)
-    best_fitness = fitness(tree, x_vec, params.feature_cost, params.decision_cost)
-    for i in 1:length(node.w)
-        best_val = node.w[i]
-        test_vals = [-1,0,1]
-        filter!(x -> x != best_val, test_vals)
-        for val in test_vals
-            node.w[i] = val
-            fit = fitness(tree, x_vec, params.feature_cost, params.decision_cost)
+    relevant_x_vec = relevant_xs(tree, node, x_vec)
+    if length(relevant_x_vec) > 0
+        best_fitness = fitness(tree, relevant_x_vec, params.feature_cost, params.decision_cost)
+        for i in 1:length(node.w)
+            best_val = node.w[i]
+            test_vals = [-1,0,1]
+            filter!(x -> x != best_val, test_vals)
+            for val in test_vals
+                node.w[i] = val
+                fit = fitness(tree, relevant_x_vec, params.feature_cost, params.decision_cost)
+                if fit > best_fitness
+                    best_val = val
+                    best_fitness = fit
+                end
+            end
+            node.w[i] = best_val
+        end
+
+        best_threshold = node.threshold
+        for a in range(-1.5,stop=1.5, length=19)
+            node.threshold = a
+            fit = fitness(tree, relevant_x_vec, params.feature_cost, params.decision_cost)
             if fit > best_fitness
-                best_val = val
                 best_fitness = fit
+                best_threshold = a
             end
         end
-        node.w[i] = best_val
+        node.threshold = best_threshold
     end
-
-    best_threshold = node.threshold
-    for a in range(-1.5,stop=1.5, length=19)
-        node.threshold = a
-        fit = fitness(tree, x_vec, params.feature_cost, params.decision_cost)
-        if fit > best_fitness
-            best_fitness = fit
-            best_threshold = a
-        end
-    end
-    node.threshold = best_threshold
 end
 
 "Iterates over all decision nodes in a tree and makes a local optimazation of parameters"
