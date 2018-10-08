@@ -1,6 +1,6 @@
 module LinearDT
 
-export fitness, gen_n_children, gen_child, Node, init_tree, gen_perf, gen_investment_list, gen_investment, actual_best_decision, dt_decide, decision_payoff, gen_features
+export fitness, gen_n_children, gen_child, Node, init_tree, gen_investment_list, gen_investment, actual_best_decision, dt_decide, decision_payoff, gen_features
 
 using StatsBase: sample, Weights
 
@@ -32,7 +32,7 @@ function rand_threshold()::Float64
     rand()*3 - 1
 end
 
-"Generates a random decsion ∈ [1,2]"
+"Generates a random decsion ∈ [1:n_items]"
 function rand_d(n_items::Int64)::Int64
     rand(1:n_items)
 end
@@ -77,20 +77,14 @@ function update_cost!(cost_vec::Vector{Int64}, n_decisions::Int64, w::Vector{Int
 end
 
 "Take a decision given features and a tree"
-function dt_decide(node::Union{Node,Int64}, features::Vector{Float64}, cost_vec::Vector{Int64}=Int64[], n_decisions::Int64=0)::Tuple{Int64, Vector{Int64}, Int64}
-    if length(cost_vec) == 0
-        cost_vec = zeros(Int64, length(features))
-    end
-    if isa(node, Int64)
-        return (node, cost_vec, n_decisions)
-    else
+function dt_decide(node::Union{Node,Int64}, features::Vector{Float64})
+    n_decisions = 0
+    cost_vec = zeros(Int64, length(features))
+    while node isa Node
         n_decisions = update_cost!(cost_vec, n_decisions, node.w)
-        if sum(node.w.*features) < node.threshold
-            return dt_decide(node.left, features, cost_vec, n_decisions)
-        else
-            return dt_decide(node.right, features, cost_vec, n_decisions)
-        end
+        node = sum(node.w.*features) < node.threshold ? node.left : node.right
     end
+    (node, cost_vec, n_decisions)
 end
 
 "Generates a tree of max length max_t, and exptends in each direction with probability p_extend"
