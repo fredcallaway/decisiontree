@@ -4,27 +4,6 @@ export fitness, gen_n_children, gen_child, Node, init_tree, gen_perf, gen_invest
 
 using StatsBase: sample, Weights
 
-# I was to lazy to pass all these parameters arond all the time.
-# When they are constants it is more difficult to play around with hyper-parameter
-# optimazation, since the whole code has to be rerun,
-# so we should probably change this at some point.
-
-# Constants for relevant parameters, constants compile to faster code.
-# const feature_cost = 0.05
-# const decision_cost = 0.01
-# const p_crossover = 0.3
-# const p_mutate_params = 0.7
-# const p_mutate_w = 0.5
-# const p_mutate_threshold = 0.5
-# const p_mutate_end = 0.3
-# const p_mutate_subtree = 0.3
-# const p_opt_decisions = 0.5
-# const p_opt_tree = 0.5
-# const p_reduce = 0.5
-# const p_trim = 0.5
-# const tourn_size = 3
-# const n_items = 2
-
 Investment = Vector{Vector{Float64}}
 
 "Generates a single investment problem"
