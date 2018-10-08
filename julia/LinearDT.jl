@@ -87,24 +87,6 @@ function dt_decide(node::Union{Node,Int64}, features::Vector{Float64})
     (node, cost_vec, n_decisions)
 end
 
-"Returns true|false wheter or not a given tree passes a node for a set of features when making decision"
-function x_pass_node(tree::Union{Node,Int64}, node::Node, features::Vector{Float64})::Bool
-    if tree == node
-        return true
-    elseif tree isa Int64
-        return false
-    else
-        next_node = sum(tree.w.*features) < tree.threshold ? tree.left : tree.right
-        return x_pass_node(next_node, node, features)
-    end
-end
-
-"Returns a list of all decisions where a given node is actually relevant for decision"
-function relevant_xs(tree::Node, node::Node, x_vec::Vector{Investment})::Vector{Investment}
-    relevant_xs = filter(x -> x_pass_node(tree, node, vcat(x...)), x_vec)
-    return relevant_xs
-end
-
 "Generates a tree of max length max_t, and exptends in each direction with probability p_extend"
 function init_tree(max_t::Int64, params)::Node
     root = Node(params.n_attr, params.n_items)
@@ -179,6 +161,7 @@ function fitness(tree::Node, x_vec::Vector{Investment}, feature_cost::Float64, d
     fitness = sum(fitness_single(tree,x, feature_cost, decision_cost) for x in x_vec)
 end
 
+## Mutation functions
 "Calculates the crossover of two trees"
 function cross_over(tree1::Node, tree2::Node, p_crossover::Float64)::Node
     new_tree = deepcopy(tree1)
@@ -228,6 +211,75 @@ function mutate_subtree(tree::Node, params)
     end
 end
 
+## Caching functions
+"Fitness from cache"
+function cache_fitness(node::Node, cost_vec, left_cache, right_cache, params)
+    tot_fitness = 0
+    n_decisions = 0
+    for i in 1:length(node.w)
+        if node.w[i] != 0
+            cost_vec[i] = 1
+            n_decisions += 1
+        end
+    end
+    for i in 1:length(left_cache)
+        if sum(node.w.*left_cache[i].f) < node.threshold
+            left_cost = params.feature_cost*sum(cost_vec .| left_cache[i].cost_vec) + params.decision_cost*(left_cache[i].n_decisions + n_decisions)
+            tot_fitness = tot_fitness + left_cache[i].payoff - left_cost
+        else
+            right_cost = params.feature_cost*sum(cost_vec .| right_cache[i].cost_vec) + params.decision_cost*(right_cache[i].n_decisions + n_decisions)
+            tot_fitness = tot_fitness + right_cache[i].payoff - right_cost
+        end
+    end
+    return tot_fitness
+end
+
+"Must be passed features so that it actually passes the node"
+function until_node_cost_vec(tree::Node, node_to_reach::Node, x::Vector{Vector{Float64}})::Vector{Int64}
+    features = gen_features(x)
+    n_decisions = 0
+    cost_vec = zeros(Int64, length(features))
+    node = tree
+    while node != node_to_reach
+        n_decisions = update_cost!(cost_vec, n_decisions, node.w)
+        node = sum(node.w.*features) < node.threshold ? node.left : node.right
+    end
+    return cost_vec
+end
+
+"Calculates payoffs and costs for subtree, used for caching"
+function subtree_decision(tree::Union{Node, Int64}, x::Investment)
+    features = gen_features(x)
+    choice, cost_vec, n_decisions = dt_decide(tree, features)
+    payoff = decision_payoff(x,choice)
+    return (payoff, cost_vec, n_decisions)
+end
+
+"Generates a tuple to cache"
+function gen_cache_tuple(node::Union{Node, Int64}, x::Investment)
+    payoff, cost_vec, n_decisions = subtree_decision(node, x)
+    return (f=gen_features(x), payoff=payoff, cost_vec=cost_vec, n_decisions=n_decisions)
+end
+
+"Returns true|false wheter or not a given tree passes a node for a set of features when making decision"
+function x_pass_node(tree::Union{Node,Int64}, node::Node, features::Vector{Float64})::Bool
+    if tree == node
+        return true
+    elseif tree isa Int64
+        return false
+    else
+        next_node = sum(tree.w.*features) < tree.threshold ? tree.left : tree.right
+        return x_pass_node(next_node, node, features)
+    end
+end
+
+"Returns a list of all decisions where a given node is actually relevant for decision"
+function relevant_xs(tree::Node, node::Node, x_vec::Vector{Investment})::Vector{Investment}
+    relevant_xs = filter(x -> x_pass_node(tree, node, vcat(x...)), x_vec)
+    return relevant_xs
+end
+
+## Local optimazation
 "Makes a local optimazation for all decision nodes"
 function opt_decisions(tree::Node, x_vec::Vector{Investment}, params)
     for node in gen_node_list(tree)
@@ -259,15 +311,21 @@ end
 "Makes a local optimazation for all params, w and threshold, for a node"
 function opt_node_params(tree::Node, node::Node, x_vec::Vector{Investment}, params)
     relevant_x_vec = relevant_xs(tree, node, x_vec)
-    if length(relevant_x_vec) > 0
-        best_fitness = fitness(tree, relevant_x_vec, params.feature_cost, params.decision_cost)
+    # if length(relevant_x_vec) > 0
+    if !isempty(relevant_x_vec)
+        cost_vec_until = until_node_cost_vec(tree, node, relevant_x_vec[1])
+        left_cache = [gen_cache_tuple(node.left, x) for x in relevant_x_vec]
+        right_cache = [gen_cache_tuple(node.right, x) for x in relevant_x_vec]
+        # best_fitness = fitness(tree, relevant_x_vec, params.feature_cost, params.decision_cost)
+        best_fitness = cache_fitness(node, cost_vec_until, left_cache, right_cache, params)
         for i in 1:length(node.w)
             best_val = node.w[i]
             test_vals = [-1,0,1]
             filter!(x -> x != best_val, test_vals)
             for val in test_vals
                 node.w[i] = val
-                fit = fitness(tree, relevant_x_vec, params.feature_cost, params.decision_cost)
+                # fit = fitness(tree, relevant_x_vec, params.feature_cost, params.decision_cost)
+                fit = cache_fitness(node, cost_vec_until, left_cache, right_cache, params)
                 if fit > best_fitness
                     best_val = val
                     best_fitness = fit
@@ -279,7 +337,8 @@ function opt_node_params(tree::Node, node::Node, x_vec::Vector{Investment}, para
         best_threshold = node.threshold
         for a in range(-1.5,stop=1.5, length=19)
             node.threshold = a
-            fit = fitness(tree, relevant_x_vec, params.feature_cost, params.decision_cost)
+            # fit = fitness(tree, relevant_x_vec, params.feature_cost, params.decision_cost)
+            fit = cache_fitness(node, cost_vec_until, left_cache, right_cache, params)
             if fit > best_fitness
                 best_fitness = fit
                 best_threshold = a
